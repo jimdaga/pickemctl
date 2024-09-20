@@ -1,12 +1,13 @@
 package daemon
 
 import (
-	"fmt"
 	"log"
 	"time"
 
+	"database/sql"
 	"github.com/jimdaga/pickemcli/internal/db"
-	"github.com/jimdaga/pickemcli/pkg/toppicks"
+	"github.com/jimdaga/pickemcli/pkg/leastPicked"
+	"github.com/jimdaga/pickemcli/pkg/topPicked"
 	"github.com/spf13/cobra"
 )
 
@@ -21,9 +22,22 @@ var DaemonCmd = &cobra.Command{
 	},
 }
 
+func collectData(db *sql.DB) {
+	// Find what team each player has picked the MOST
+	log.Printf("Most Picked Team by UID:")
+	topPicked.TopPickedByUid(db)
+	log.Printf("\n")
+
+	// Find what team each player has picked the LEAST
+	log.Printf("Least Picked Team by UID:")
+	leastPicked.LeastPickedByUid(db)
+	log.Printf("\n")
+}
+
 // Daemon starts the daemon process
 func daemon() {
-	log.Printf("Starting daemon")
+	log.Printf("Starting daemon\n")
+	log.Printf("\n")
 	/* TODO: Make time configurable */
 	ticker := time.NewTicker(30 * time.Second)
 	quit := make(chan struct{})
@@ -31,13 +45,15 @@ func daemon() {
 	db := db.Connect()
 	defer db.Close()
 
+	// Run the data collect once before entering the loop:
+	collectData(db)
+
+	// Run the data collect every N seconds
 	go func() {
 		for {
 			select {
 			case <-ticker.C:
-				// Find what team each player has picked the most
-				fmt.Println("..| Most Picked Team(s) by UID |..")
-				toppicks.MostPicked(db)
+				collectData(db)
 			case <-quit:
 				ticker.Stop()
 				return

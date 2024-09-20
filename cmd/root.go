@@ -2,12 +2,14 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"os"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
 	"github.com/jimdaga/pickemcli/pkg/daemon"
-	"github.com/jimdaga/pickemcli/pkg/toppicks"
+	"github.com/jimdaga/pickemcli/pkg/leastPicked"
+	"github.com/jimdaga/pickemcli/pkg/topPicked"
 )
 
 var Debug bool
@@ -29,7 +31,8 @@ func Execute() {
 }
 
 func addSubcommandPallets() {
-	rootCmd.AddCommand(toppicks.TopPicks)
+	rootCmd.AddCommand(topPicked.TopPicked)
+	rootCmd.AddCommand(leastPicked.LeastPicked)
 	rootCmd.AddCommand(daemon.DaemonCmd)
 }
 

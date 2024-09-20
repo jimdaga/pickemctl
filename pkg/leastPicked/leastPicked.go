@@ -1,4 +1,4 @@
-package toppicks
+package leastPicked
 
 import (
 	"database/sql"
@@ -6,14 +6,15 @@ import (
 	"github.com/jimdaga/pickemcli/internal/db"
 	_ "github.com/lib/pq"
 	"github.com/spf13/cobra"
+	"log"
 )
 
-// TopPicks represents the toppicks command
-var TopPicks = &cobra.Command{
-	Use:   "toppicks",
-	Short: "Generate top pick analytics",
-	Long: `Top Picks Data Generation
-			Generate various analytics based on users top picks`,
+// leastPicked represents the leastPicked command
+var LeastPicked = &cobra.Command{
+	Use:   "leastPicked",
+	Short: "Generate least pick analytics",
+	Long: `least Picks Data Generation
+			Generate various analytics based on users least picks`,
 	Run: func(cmd *cobra.Command, args []string) {
 		db := db.Connect()
 		defer db.Close()
@@ -22,11 +23,11 @@ var TopPicks = &cobra.Command{
 		// this is for all time
 		// Include if there is a tie for most picked
 		fmt.Println("..| Most Picked Team(s) by UID |..")
-		MostPicked(db)
+		LeastPickedByUid(db)
 	},
 }
 
-func MostPicked(db *sql.DB) {
+func LeastPickedByUid(db *sql.DB) {
 
 	uidrows, err := db.Query("SELECT DISTINCT(uid) FROM public.pickem_api_gamepicks")
 	if err != nil {
@@ -48,8 +49,8 @@ func MostPicked(db *sql.DB) {
 			"FROM pickem_api_gamepicks "+
 			"WHERE uid = $1 "+
 			"GROUP BY uid, pick "+
-			"HAVING COUNT(*) = (SELECT MAX(c) FROM (SELECT COUNT(*) as c FROM pickem_api_gamepicks WHERE uid = $1 GROUP BY uid, pick) subquery) "+
-			"ORDER BY count DESC", uid)
+			"HAVING COUNT(*) = (SELECT MIN(c) FROM (SELECT COUNT(*) as c FROM pickem_api_gamepicks WHERE uid = $1 GROUP BY uid, pick) subquery) "+
+			"ORDER BY count ASC", uid)
 
 		if err != nil {
 			fmt.Println(err)
@@ -69,7 +70,7 @@ func MostPicked(db *sql.DB) {
 			}
 			/* TODO: Update a database table with this information
 			 * TODO: Write django model to store this information */
-			fmt.Printf("UID: %s, Pick: %s, Count: %d\n", uid, pick, count)
+			log.Printf(" - UID: %s, Pick: %s, Count: %d\n", uid, pick, count)
 		}
 	}
 }
