@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"github.com/jimdaga/pickemcli/internal/db"
 	"github.com/jimdaga/pickemcli/pkg/leastPicked"
+	"github.com/jimdaga/pickemcli/pkg/pickStats"
 	"github.com/jimdaga/pickemcli/pkg/topPicked"
 	"github.com/spf13/cobra"
 )
@@ -32,6 +33,17 @@ func collectData(db *sql.DB) {
 	log.Printf("Least Picked Team by UID:")
 	leastPicked.LeastPickedByUid(db)
 	log.Printf("\n")
+
+	// Find what team each player has picked the LEAST
+	log.Printf("Correct Picks by UID:")
+	pickStats.CorrectPicksByUid(db)
+	log.Printf("\n")
+
+	// Find what team each player has picked the LEAST
+	log.Printf("Weeks Won by UID:")
+	pickStats.WeeksWonByUid(db)
+	log.Printf("\n")
+
 }
 
 // Daemon starts the daemon process

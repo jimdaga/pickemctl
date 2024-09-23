@@ -9,6 +9,7 @@ import (
 
 	"github.com/jimdaga/pickemcli/pkg/daemon"
 	"github.com/jimdaga/pickemcli/pkg/leastPicked"
+	"github.com/jimdaga/pickemcli/pkg/pickStats"
 	"github.com/jimdaga/pickemcli/pkg/topPicked"
 )
 
@@ -33,6 +34,7 @@ func Execute() {
 func addSubcommandPallets() {
 	rootCmd.AddCommand(topPicked.TopPicked)
 	rootCmd.AddCommand(leastPicked.LeastPicked)
+	rootCmd.AddCommand(pickStats.PickStats)
 	rootCmd.AddCommand(daemon.DaemonCmd)
 }
 
