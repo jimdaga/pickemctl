@@ -10,6 +10,7 @@ import (
 	"github.com/jimdaga/pickemcli/pkg/pickStats"
 	"github.com/jimdaga/pickemcli/pkg/topPicked"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // Daemon represents the daemon command
@@ -50,8 +51,12 @@ func collectData(db *sql.DB) {
 func daemon() {
 	log.Printf("Starting daemon\n")
 	log.Printf("\n")
-	/* TODO: Make time configurable */
-	ticker := time.NewTicker(30 * time.Second)
+
+	seconds := viper.GetDuration("daemon.interval") * time.Second
+	ticker := time.NewTicker(seconds)
+	log.Printf("Daemon interval: %v\n", seconds)
+	log.Printf("\n")
+
 	quit := make(chan struct{})
 
 	db := db.Connect()

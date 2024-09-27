@@ -54,4 +54,18 @@ func init() {
 
 	addSubcommandPallets()
 
+	// Load configuration
+	viper.AddConfigPath(".")
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			panic(fmt.Errorf("fatal error reading config file: %w", err))
+		}
+	}
+
+	// Set Defalts
+	viper.SetDefault("daemon.interval", 30)
+
 }
