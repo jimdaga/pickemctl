@@ -65,7 +65,8 @@ func init() {
 		}
 	}
 
-	// Set Defalts
+	// Set Defaults
 	viper.SetDefault("daemon.interval", 30)
+	viper.SetDefault("app.season.current", "2425")
 
 }
