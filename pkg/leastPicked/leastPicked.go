@@ -3,6 +3,7 @@ package leastPicked
 import (
 	"database/sql"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/jimdaga/pickemcli/internal/db"
 	_ "github.com/lib/pq"
 	"github.com/spf13/cobra"
@@ -63,14 +64,26 @@ func LeastPickedByUid(db *sql.DB) {
 			var uid string
 			var pick string
 			var count int
-			err := current.Scan(&uid, &pick, &count)
-			if err != nil {
-				fmt.Println(err)
-				continue
+			var exists bool
+			_ = current.Scan(&uid, &pick, &count)
+
+			if err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM public.pickem_api_userstats WHERE \"userID\"=$1)", uid).Scan(&exists); err != nil {
+				log.Printf("error checking if row exists: %v", err)
 			}
-			/* TODO: Update a database table with this information
-			 * TODO: Write django model to store this information */
-			log.Printf(" - UID: %s, Pick: %s, Count: %d\n", uid, pick, count)
+
+			if exists {
+				// Row exists, perform an UPDATE
+				_, err = db.Exec("UPDATE public.pickem_api_userstats SET \"leastPickedTotal\"=$1 WHERE \"userID\"=$2", pick, uid)
+				if err != nil {
+					log.Printf("error updating least picked total: %v", err)
+				}
+			} else {
+				// Row does not exist, perform an INSERT
+				_, err = db.Exec("INSERT INTO public.pickem_api_userstats (\"id\", \"userID\", \"leastPickedTotal\") VALUES ($1, $2, $3)", uuid.New(), uid, pick)
+				if err != nil {
+					log.Printf("error inserting new row: %v", err)
+				}
+			}
 		}
 	}
 }
