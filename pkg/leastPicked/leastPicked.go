@@ -67,11 +67,21 @@ func LeastPickedByUid(db *sql.DB) {
 			var exists bool
 			_ = current.Scan(&uid, &pick, &count)
 
+			// Fetch userEmail for the current uid
+			var userEmail string
+			if err = db.QueryRow("SELECT \"email\" FROM public.account_emailaddress WHERE \"user_id\"=$1", uid).Scan(&userEmail); err != nil {
+				log.Printf("error fetching userEmail: %v", err)
+				continue
+			}
 			if err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM public.pickem_api_userstats WHERE \"userID\"=$1)", uid).Scan(&exists); err != nil {
 				log.Printf("error checking if row exists: %v", err)
+			} else {
+				exists = false
 			}
 
 			if exists {
+				fmt.Println("Row exists, performing an update")
+				fmt.Println("result of exists: ", exists)
 				// Row exists, perform an UPDATE
 				_, err = db.Exec("UPDATE public.pickem_api_userstats SET \"leastPickedTotal\"=$1 WHERE \"userID\"=$2", pick, uid)
 				if err != nil {
@@ -79,7 +89,8 @@ func LeastPickedByUid(db *sql.DB) {
 				}
 			} else {
 				// Row does not exist, perform an INSERT
-				_, err = db.Exec("INSERT INTO public.pickem_api_userstats (\"id\", \"userID\", \"leastPickedTotal\") VALUES ($1, $2, $3)", uuid.New(), uid, pick)
+				fmt.Println("Inserting new row")
+				_, err = db.Exec("INSERT INTO public.pickem_api_userstats (\"id\", \"userID\", \"userEmail\", \"leastPickedTotal\") VALUES ($1, $2, $3, $4)", uuid.New(), uid, userEmail, pick)
 				if err != nil {
 					log.Printf("error inserting new row: %v", err)
 				}
