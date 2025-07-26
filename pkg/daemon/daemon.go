@@ -6,9 +6,8 @@ import (
 
 	"database/sql"
 	"github.com/jimdaga/pickemcli/internal/db"
-	"github.com/jimdaga/pickemcli/pkg/leastPicked"
-	"github.com/jimdaga/pickemcli/pkg/pickStats"
-	"github.com/jimdaga/pickemcli/pkg/topPicked"
+	"github.com/jimdaga/pickemcli/pkg/userStats"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -25,26 +24,17 @@ var DaemonCmd = &cobra.Command{
 }
 
 func collectData(db *sql.DB) {
-	// Find what team each player has picked the MOST
-	log.Printf("Most Picked Team by UID:")
-	topPicked.TopPickedByUid(db)
+	log.Printf("Running User Statistics Collection:")
+	
+	// Run all user statistics operations
+	userStats.RunPickStats(db)
 	log.Printf("\n")
 
-	// Find what team each player has picked the LEAST
-	log.Printf("Least Picked Team by UID:")
-	leastPicked.LeastPickedByUid(db)
+	userStats.RunTopPicked(db)
 	log.Printf("\n")
 
-	// Find what team each player has picked the LEAST
-	log.Printf("Correct Picks by UID:")
-	pickStats.CorrectPicksByUid(db)
+	userStats.RunLeastPicked(db)
 	log.Printf("\n")
-
-	// Find what team each player has picked the LEAST
-	log.Printf("Weeks Won by UID:")
-	pickStats.WeeksWonByUid(db)
-	log.Printf("\n")
-
 }
 
 // Daemon starts the daemon process
@@ -82,5 +72,7 @@ func daemon() {
 }
 
 func init() {
-	// TODO: Add flags for setting time
+	// Set configuration defaults
+	viper.SetDefault("daemon.interval", 30)
+	viper.SetDefault("app.season.current", "2425")
 }

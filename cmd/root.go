@@ -8,9 +8,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jimdaga/pickemcli/pkg/daemon"
-	"github.com/jimdaga/pickemcli/pkg/leastPicked"
-	"github.com/jimdaga/pickemcli/pkg/pickStats"
-	"github.com/jimdaga/pickemcli/pkg/topPicked"
+	"github.com/jimdaga/pickemcli/pkg/userStats"
 )
 
 var Debug bool
@@ -32,9 +30,15 @@ func Execute() {
 }
 
 func addSubcommandPallets() {
-	rootCmd.AddCommand(topPicked.TopPicked)
-	rootCmd.AddCommand(leastPicked.LeastPicked)
-	rootCmd.AddCommand(pickStats.PickStats)
+	// Add the main userStats command that runs all analytics
+	rootCmd.AddCommand(userStats.UserStats)
+	
+	// Add individual analytics commands for backwards compatibility
+	rootCmd.AddCommand(userStats.PickStats)
+	rootCmd.AddCommand(userStats.TopPicked)
+	rootCmd.AddCommand(userStats.LeastPicked)
+	
+	// Add daemon command
 	rootCmd.AddCommand(daemon.DaemonCmd)
 }
 

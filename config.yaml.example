@@ -1,0 +1,20 @@
+# Example configuration file for pickemctl
+# Copy this to config.yaml and update with your settings
+
+# Database configuration
+database:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: your_password_here
+  name: pickem
+  sslmode: disable
+
+# Application settings
+app:
+  season:
+    current: "2425"  # Current NFL season (2024-2025)
+
+# Daemon settings
+daemon:
+  interval: 30  # Data collection interval in seconds 
