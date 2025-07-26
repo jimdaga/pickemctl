@@ -1,6 +1,6 @@
 module github.com/jimdaga/pickemcli
 
-go 1.23.1
+go 1.23
 
 require (
 	github.com/dariubs/percent v1.0.0 // indirect
