@@ -258,83 +258,79 @@ func WeeksWonByUid(db *sql.DB) {
 
 		// Calculate missed picks - season
 		var missedPicksSeason int
-		var totalScoredGamesSeason, userPicksSeason int
 
-		// Count total scored games for current season
-		err = db.QueryRow("SELECT COUNT(*) FROM \"pickem_api_gamesandscores\" WHERE \"gameseason\" = $1 AND \"gameScored\" = true", currentSeason).Scan(&totalScoredGamesSeason)
+		// Count scored games for current season that the user did NOT pick
+		err = db.QueryRow(`
+			SELECT COUNT(*) 
+			FROM "pickem_api_gamesandscores" gs
+			WHERE gs."gameseason" = $1 
+			AND gs."gameScored" = true
+			AND NOT EXISTS (
+				SELECT 1 FROM "pickem_api_gamepicks" gp 
+				WHERE gp."pick_game_id" = gs."id" 
+				AND gp."userID" = $2
+			)`, currentSeason, uid).Scan(&missedPicksSeason)
+
 		if err != nil {
-			log.Printf("Error getting total scored games for season %s: %v", currentSeason, err)
-			totalScoredGamesSeason = 0
-		}
-
-		// Count user picks for current season
-		err = db.QueryRow("SELECT COUNT(*) FROM \"pickem_api_gamepicks\" WHERE \"userID\" = $1 AND \"gameseason\" = $2", uid, currentSeason).Scan(&userPicksSeason)
-		if err != nil {
-			log.Printf("Error getting user picks for season %s, UID %s: %v", currentSeason, uid, err)
-			userPicksSeason = 0
-		}
-
-		missedPicksSeason = totalScoredGamesSeason - userPicksSeason
-		if missedPicksSeason < 0 {
-			missedPicksSeason = 0 // Can't have negative missed picks
+			log.Printf("Error getting missed picks for season %s, UID %s: %v", currentSeason, uid, err)
+			missedPicksSeason = 0
 		}
 		stats.MissedPicksSeason = dbUtil.IntPtr(missedPicksSeason)
 
 		// Calculate missed picks - total (all time)
 		var missedPicksTotal int
-		var totalScoredGamesTotal, userPicksTotal int
 
-		// Count total scored games across all seasons
-		err = db.QueryRow("SELECT COUNT(*) FROM \"pickem_api_gamesandscores\" WHERE \"gameScored\" = true").Scan(&totalScoredGamesTotal)
+		// Count scored games across all seasons that the user did NOT pick
+		err = db.QueryRow(`
+			SELECT COUNT(*) 
+			FROM "pickem_api_gamesandscores" gs
+			WHERE gs."gameScored" = true
+			AND NOT EXISTS (
+				SELECT 1 FROM "pickem_api_gamepicks" gp 
+				WHERE gp."pick_game_id" = gs."id" 
+				AND gp."userID" = $1
+			)`, uid).Scan(&missedPicksTotal)
+
 		if err != nil {
-			log.Printf("Error getting total scored games: %v", err)
-			totalScoredGamesTotal = 0
-		}
-
-		// Count user picks across all seasons
-		err = db.QueryRow("SELECT COUNT(*) FROM \"pickem_api_gamepicks\" WHERE \"userID\" = $1", uid).Scan(&userPicksTotal)
-		if err != nil {
-			log.Printf("Error getting total user picks for UID %s: %v", uid, err)
-			userPicksTotal = 0
-		}
-
-		missedPicksTotal = totalScoredGamesTotal - userPicksTotal
-		if missedPicksTotal < 0 {
-			missedPicksTotal = 0 // Can't have negative missed picks
+			log.Printf("Error getting total missed picks for UID %s: %v", uid, err)
+			missedPicksTotal = 0
 		}
 		stats.MissedPicksTotal = dbUtil.IntPtr(missedPicksTotal)
 
 		// Calculate perfect weeks - season
 		var perfectWeeksSeason int
 		perfectWeeksQuery := `
-			SELECT COUNT(*) FROM (
-				SELECT gw."weekNumber"
-				FROM (SELECT DISTINCT "weekNumber" FROM public.pickem_api_gameweeks) gw
-				WHERE EXISTS (
-					SELECT 1 FROM pickem_api_gamesandscores gs 
-					WHERE CAST(gs.gameweek AS INTEGER) = gw."weekNumber" 
-					AND gs.gameseason = $1 
-					AND gs.gamescored = true
-				)
-				AND (
-					SELECT COUNT(*) FROM pickem_api_gamesandscores gs2 
-					WHERE CAST(gs2.gameweek AS INTEGER) = gw."weekNumber" 
-					AND gs2.gameseason = $1 
-					AND gs2.gamescored = true
-				) = (
-					SELECT COUNT(*) FROM pickem_api_gamepicks gp 
-					WHERE CAST(gp.gameweek AS INTEGER) = gw."weekNumber" 
-					AND gp.gameseason = $1 
-					AND gp."userID" = $2 
-					AND gp.pick_correct = true
-				)
-				AND (
-					SELECT COUNT(*) FROM pickem_api_gamepicks gp2 
-					WHERE CAST(gp2.gameweek AS INTEGER) = gw."weekNumber" 
-					AND gp2.gameseason = $1 
-					AND gp2."userID" = $2
-				) > 0
-			) perfect_weeks`
+			SELECT COUNT(DISTINCT gs.gameweek) 
+			FROM pickem_api_gamesandscores gs
+			WHERE gs.gameseason = $1 
+			AND gs.gamescored = true
+			AND (
+				-- Count of scored games in this week
+				SELECT COUNT(*) FROM pickem_api_gamesandscores gs2 
+				WHERE gs2.gameweek = gs.gameweek 
+				AND gs2.gameseason = gs.gameseason 
+				AND gs2.gamescored = true
+			) = (
+				-- Count of correct picks by user in this week
+				SELECT COUNT(*) FROM pickem_api_gamepicks gp 
+				WHERE gp.gameweek = gs.gameweek 
+				AND gp.gameseason = gs.gameseason 
+				AND gp."userID" = $2 
+				AND gp.pick_correct = true
+			)
+			AND (
+				-- Ensure user made picks for ALL scored games (no missed picks)
+				SELECT COUNT(*) FROM pickem_api_gamesandscores gs3
+				WHERE gs3.gameweek = gs.gameweek 
+				AND gs3.gameseason = gs.gameseason 
+				AND gs3.gamescored = true
+			) = (
+				-- Count of total picks by user in this week
+				SELECT COUNT(*) FROM pickem_api_gamepicks gp2 
+				WHERE gp2.gameweek = gs.gameweek 
+				AND gp2.gameseason = gs.gameseason 
+				AND gp2."userID" = $2
+			)`
 
 		err = db.QueryRow(perfectWeeksQuery, currentSeason, uid).Scan(&perfectWeeksSeason)
 		if err != nil {
@@ -346,35 +342,36 @@ func WeeksWonByUid(db *sql.DB) {
 		// Calculate perfect weeks - total (all time)
 		var perfectWeeksTotal int
 		perfectWeeksTotalQuery := `
-			SELECT COUNT(*) FROM (
-				SELECT gw."weekNumber", gs.gameseason
-				FROM (SELECT DISTINCT "weekNumber" FROM public.pickem_api_gameweeks) gw
-				CROSS JOIN (SELECT DISTINCT gameseason FROM pickem_api_gamesandscores WHERE gamescored = true) gs
-				WHERE EXISTS (
-					SELECT 1 FROM pickem_api_gamesandscores gs2 
-					WHERE CAST(gs2.gameweek AS INTEGER) = gw."weekNumber" 
-					AND gs2.gameseason = gs.gameseason 
-					AND gs2.gamescored = true
-				)
-				AND (
-					SELECT COUNT(*) FROM pickem_api_gamesandscores gs3 
-					WHERE CAST(gs3.gameweek AS INTEGER) = gw."weekNumber" 
-					AND gs3.gameseason = gs.gameseason 
-					AND gs3.gamescored = true
-				) = (
-					SELECT COUNT(*) FROM pickem_api_gamepicks gp 
-					WHERE CAST(gp.gameweek AS INTEGER) = gw."weekNumber" 
-					AND gp.gameseason = gs.gameseason 
-					AND gp."userID" = $1 
-					AND gp.pick_correct = true
-				)
-				AND (
-					SELECT COUNT(*) FROM pickem_api_gamepicks gp2 
-					WHERE CAST(gp2.gameweek AS INTEGER) = gw."weekNumber" 
-					AND gp2.gameseason = gs.gameseason 
-					AND gp2."userID" = $1
-				) > 0
-			) perfect_weeks`
+			SELECT COUNT(DISTINCT gs.gameseason || '-' || gs.gameweek) 
+			FROM pickem_api_gamesandscores gs
+			WHERE gs.gamescored = true
+			AND (
+				-- Count of scored games in this week/season
+				SELECT COUNT(*) FROM pickem_api_gamesandscores gs2 
+				WHERE gs2.gameweek = gs.gameweek 
+				AND gs2.gameseason = gs.gameseason 
+				AND gs2.gamescored = true
+			) = (
+				-- Count of correct picks by user in this week/season
+				SELECT COUNT(*) FROM pickem_api_gamepicks gp 
+				WHERE gp.gameweek = gs.gameweek 
+				AND gp.gameseason = gs.gameseason 
+				AND gp."userID" = $1 
+				AND gp.pick_correct = true
+			)
+			AND (
+				-- Ensure user made picks for ALL scored games (no missed picks)
+				SELECT COUNT(*) FROM pickem_api_gamesandscores gs3
+				WHERE gs3.gameweek = gs.gameweek 
+				AND gs3.gameseason = gs.gameseason 
+				AND gs3.gamescored = true
+			) = (
+				-- Count of total picks by user in this week/season
+				SELECT COUNT(*) FROM pickem_api_gamepicks gp2 
+				WHERE gp2.gameweek = gs.gameweek 
+				AND gp2.gameseason = gs.gameseason 
+				AND gp2."userID" = $1
+			)`
 
 		err = db.QueryRow(perfectWeeksTotalQuery, uid).Scan(&perfectWeeksTotal)
 		if err != nil {
@@ -387,7 +384,7 @@ func WeeksWonByUid(db *sql.DB) {
 		if err := dbUtil.UpsertUserStats(db, stats); err != nil {
 			log.Printf("Error upserting user stats for UID %s: %v", uid, err)
 		} else {
-			log.Printf("✓ UID: %s, Weeks Won - Total: %d, Season: %d, Seasons Won: %d, Missed Picks - Total: %d, Season: %d, Perfect Weeks - Total: %d, Season: %d", uid, weeksWonTotal, weeksWonSeason, seasonsWon, missedPicksTotal, missedPicksSeason, perfectWeeksTotal, perfectWeeksSeason)
+			log.Printf("✓ UID: %s | Weeks Won: %d/%d | Seasons Won: %d | Missed Picks: %d/%d | Perfect Weeks: %d/%d", uid, weeksWonSeason, weeksWonTotal, seasonsWon, missedPicksSeason, missedPicksTotal, perfectWeeksSeason, perfectWeeksTotal)
 		}
 	}
 }
