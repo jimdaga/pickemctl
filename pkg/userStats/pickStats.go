@@ -167,7 +167,7 @@ func WeeksWonByUid(db *sql.DB) {
 		var userID string
 		var weeksWonTotal int
 		err = db.QueryRow("SELECT \"userID\","+
-			"SUM("+
+			"COALESCE(SUM("+
 			"CASE WHEN \"week_1_winner\" THEN 1 ELSE 0 END +"+
 			"CASE WHEN \"week_2_winner\" THEN 1 ELSE 0 END +"+
 			"CASE WHEN \"week_3_winner\" THEN 1 ELSE 0 END +"+
@@ -186,7 +186,7 @@ func WeeksWonByUid(db *sql.DB) {
 			"CASE WHEN \"week_16_winner\" THEN 1 ELSE 0 END +"+
 			"CASE WHEN \"week_17_winner\" THEN 1 ELSE 0 END +"+
 			"CASE WHEN \"week_18_winner\" THEN 1 ELSE 0 END"+
-			") AS \"total_wins\""+
+			"), 0) AS \"total_wins\""+
 			"FROM \"pickem_api_userseasonpoints\""+
 			"WHERE \"userID\" = $1 "+
 			"GROUP BY \"userID\"", uid).Scan(&userID, &weeksWonTotal)
@@ -209,7 +209,7 @@ func WeeksWonByUid(db *sql.DB) {
 		currentSeason := viper.GetString("app.season.current")
 		var weeksWonSeason int
 		err = db.QueryRow("SELECT "+
-			"SUM("+
+			"COALESCE(SUM("+
 			"CASE WHEN \"week_1_winner\" THEN 1 ELSE 0 END +"+
 			"CASE WHEN \"week_2_winner\" THEN 1 ELSE 0 END +"+
 			"CASE WHEN \"week_3_winner\" THEN 1 ELSE 0 END +"+
@@ -228,19 +228,13 @@ func WeeksWonByUid(db *sql.DB) {
 			"CASE WHEN \"week_16_winner\" THEN 1 ELSE 0 END +"+
 			"CASE WHEN \"week_17_winner\" THEN 1 ELSE 0 END +"+
 			"CASE WHEN \"week_18_winner\" THEN 1 ELSE 0 END"+
-			") AS \"season_wins\""+
+			"), 0) AS \"season_wins\""+
 			"FROM \"pickem_api_userseasonpoints\""+
 			"WHERE \"userID\" = $1 AND \"gameseason\" = $2", uid, currentSeason).Scan(&weeksWonSeason)
 
 		if err != nil {
-			if err == sql.ErrNoRows {
-				// User has no records for current season yet, set to 0
-				weeksWonSeason = 0
-				log.Printf("No current season record found for UID %s, setting season weeks won to 0", uid)
-			} else {
-				log.Printf("Error getting season weeks won for UID %s: %v", uid, err)
-				// Continue with just total stats
-			}
+			log.Printf("Error getting season weeks won for UID %s: %v", uid, err)
+			weeksWonSeason = 0
 		}
 
 		// Set season weeks won
@@ -314,29 +308,29 @@ func WeeksWonByUid(db *sql.DB) {
 		var perfectWeeksSeason int
 		perfectWeeksQuery := `
 			SELECT COUNT(*) FROM (
-				SELECT gw.weeknumber
-				FROM (SELECT DISTINCT weeknumber FROM public.pickem_api_gameweeks) gw
+				SELECT gw."weekNumber"
+				FROM (SELECT DISTINCT "weekNumber" FROM public.pickem_api_gameweeks) gw
 				WHERE EXISTS (
 					SELECT 1 FROM pickem_api_gamesandscores gs 
-					WHERE CAST(gs.gameweek AS INTEGER) = gw.weeknumber 
+					WHERE CAST(gs.gameweek AS INTEGER) = gw."weekNumber" 
 					AND gs.gameseason = $1 
 					AND gs.gamescored = true
 				)
 				AND (
 					SELECT COUNT(*) FROM pickem_api_gamesandscores gs2 
-					WHERE CAST(gs2.gameweek AS INTEGER) = gw.weeknumber 
+					WHERE CAST(gs2.gameweek AS INTEGER) = gw."weekNumber" 
 					AND gs2.gameseason = $1 
 					AND gs2.gamescored = true
 				) = (
 					SELECT COUNT(*) FROM pickem_api_gamepicks gp 
-					WHERE CAST(gp.gameweek AS INTEGER) = gw.weeknumber 
+					WHERE CAST(gp.gameweek AS INTEGER) = gw."weekNumber" 
 					AND gp.gameseason = $1 
 					AND gp."userID" = $2 
 					AND gp.pick_correct = true
 				)
 				AND (
 					SELECT COUNT(*) FROM pickem_api_gamepicks gp2 
-					WHERE CAST(gp2.gameweek AS INTEGER) = gw.weeknumber 
+					WHERE CAST(gp2.gameweek AS INTEGER) = gw."weekNumber" 
 					AND gp2.gameseason = $1 
 					AND gp2."userID" = $2
 				) > 0
@@ -353,30 +347,30 @@ func WeeksWonByUid(db *sql.DB) {
 		var perfectWeeksTotal int
 		perfectWeeksTotalQuery := `
 			SELECT COUNT(*) FROM (
-				SELECT gw.weeknumber, gs.gameseason
-				FROM (SELECT DISTINCT weeknumber FROM public.pickem_api_gameweeks) gw
+				SELECT gw."weekNumber", gs.gameseason
+				FROM (SELECT DISTINCT "weekNumber" FROM public.pickem_api_gameweeks) gw
 				CROSS JOIN (SELECT DISTINCT gameseason FROM pickem_api_gamesandscores WHERE gamescored = true) gs
 				WHERE EXISTS (
 					SELECT 1 FROM pickem_api_gamesandscores gs2 
-					WHERE CAST(gs2.gameweek AS INTEGER) = gw.weeknumber 
+					WHERE CAST(gs2.gameweek AS INTEGER) = gw."weekNumber" 
 					AND gs2.gameseason = gs.gameseason 
 					AND gs2.gamescored = true
 				)
 				AND (
 					SELECT COUNT(*) FROM pickem_api_gamesandscores gs3 
-					WHERE CAST(gs3.gameweek AS INTEGER) = gw.weeknumber 
+					WHERE CAST(gs3.gameweek AS INTEGER) = gw."weekNumber" 
 					AND gs3.gameseason = gs.gameseason 
 					AND gs3.gamescored = true
 				) = (
 					SELECT COUNT(*) FROM pickem_api_gamepicks gp 
-					WHERE CAST(gp.gameweek AS INTEGER) = gw.weeknumber 
+					WHERE CAST(gp.gameweek AS INTEGER) = gw."weekNumber" 
 					AND gp.gameseason = gs.gameseason 
 					AND gp."userID" = $1 
 					AND gp.pick_correct = true
 				)
 				AND (
 					SELECT COUNT(*) FROM pickem_api_gamepicks gp2 
-					WHERE CAST(gp2.gameweek AS INTEGER) = gw.weeknumber 
+					WHERE CAST(gp2.gameweek AS INTEGER) = gw."weekNumber" 
 					AND gp2.gameseason = gs.gameseason 
 					AND gp2."userID" = $1
 				) > 0
