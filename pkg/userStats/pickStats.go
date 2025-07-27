@@ -291,7 +291,7 @@ func WeeksWonByUid(db *sql.DB) {
 			AND NOT EXISTS (
 				SELECT 1 FROM "pickem_api_gamepicks" gp 
 				WHERE gp."pick_game_id" = gs."id" 
-				AND gp."userID" = $1
+				AND gp."uid" = $1
 				AND gp."gameseason" IS NOT NULL
 			)`, uid).Scan(&missedPicksTotal)
 
@@ -321,7 +321,7 @@ func WeeksWonByUid(db *sql.DB) {
 				SELECT COUNT(*) FROM pickem_api_gamepicks gp 
 				WHERE gp.gameweek = gs.gameweek 
 				AND gp.gameseason = gs.gameseason 
-				AND gp."userID" = $2 
+				AND gp."uid" = $2 
 				AND gp.pick_correct = true
 				AND gp.gameseason IS NOT NULL
 			)
@@ -337,7 +337,7 @@ func WeeksWonByUid(db *sql.DB) {
 				SELECT COUNT(*) FROM pickem_api_gamepicks gp2 
 				WHERE gp2.gameweek = gs.gameweek 
 				AND gp2.gameseason = gs.gameseason 
-				AND gp2."userID" = $2
+				AND gp2."uid" = $2
 				AND gp2.gameseason IS NOT NULL
 			)`
 
