@@ -23,6 +23,10 @@ type UserStats struct {
 	LeastPickedSeason      *string   `db:"leastPickedSeason"`
 	LeastPickedTotal       *string   `db:"leastPickedTotal"`
 	SeasonsWon             *int      `db:"seasonsWon"`
+	MissedPicksSeason      *int      `db:"missedPicksSeason"`
+	MissedPicksTotal       *int      `db:"missedPicksTotal"`
+	PerfectWeeksSeason     *int      `db:"perfectWeeksSeason"`
+	PerfectWeeksTotal      *int      `db:"perfectWeeksTotal"`
 }
 
 // NewUserStats creates a new UserStats with a generated UUID

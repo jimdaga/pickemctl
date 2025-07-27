@@ -246,11 +246,154 @@ func WeeksWonByUid(db *sql.DB) {
 		// Set season weeks won
 		stats.WeeksWonSeason = dbUtil.IntPtr(weeksWonSeason)
 
+		// Calculate seasons won (year_winner = true count)
+		var seasonsWon int
+		err = db.QueryRow("SELECT COUNT(*) FROM \"pickem_api_userseasonpoints\" WHERE \"userID\" = $1 AND \"year_winner\" = true", uid).Scan(&seasonsWon)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				seasonsWon = 0
+				log.Printf("No season winner records found for UID %s, setting seasons won to 0", uid)
+			} else {
+				log.Printf("Error getting seasons won for UID %s: %v", uid, err)
+				seasonsWon = 0 // Default to 0 on error
+			}
+		}
+
+		// Set seasons won
+		stats.SeasonsWon = dbUtil.IntPtr(seasonsWon)
+
+		// Calculate missed picks - season
+		var missedPicksSeason int
+		var totalScoredGamesSeason, userPicksSeason int
+
+		// Count total scored games for current season
+		err = db.QueryRow("SELECT COUNT(*) FROM \"pickem_api_gamesandscores\" WHERE \"gameseason\" = $1 AND \"gameScored\" = true", currentSeason).Scan(&totalScoredGamesSeason)
+		if err != nil {
+			log.Printf("Error getting total scored games for season %s: %v", currentSeason, err)
+			totalScoredGamesSeason = 0
+		}
+
+		// Count user picks for current season
+		err = db.QueryRow("SELECT COUNT(*) FROM \"pickem_api_gamepicks\" WHERE \"userID\" = $1 AND \"gameseason\" = $2", uid, currentSeason).Scan(&userPicksSeason)
+		if err != nil {
+			log.Printf("Error getting user picks for season %s, UID %s: %v", currentSeason, uid, err)
+			userPicksSeason = 0
+		}
+
+		missedPicksSeason = totalScoredGamesSeason - userPicksSeason
+		if missedPicksSeason < 0 {
+			missedPicksSeason = 0 // Can't have negative missed picks
+		}
+		stats.MissedPicksSeason = dbUtil.IntPtr(missedPicksSeason)
+
+		// Calculate missed picks - total (all time)
+		var missedPicksTotal int
+		var totalScoredGamesTotal, userPicksTotal int
+
+		// Count total scored games across all seasons
+		err = db.QueryRow("SELECT COUNT(*) FROM \"pickem_api_gamesandscores\" WHERE \"gameScored\" = true").Scan(&totalScoredGamesTotal)
+		if err != nil {
+			log.Printf("Error getting total scored games: %v", err)
+			totalScoredGamesTotal = 0
+		}
+
+		// Count user picks across all seasons
+		err = db.QueryRow("SELECT COUNT(*) FROM \"pickem_api_gamepicks\" WHERE \"userID\" = $1", uid).Scan(&userPicksTotal)
+		if err != nil {
+			log.Printf("Error getting total user picks for UID %s: %v", uid, err)
+			userPicksTotal = 0
+		}
+
+		missedPicksTotal = totalScoredGamesTotal - userPicksTotal
+		if missedPicksTotal < 0 {
+			missedPicksTotal = 0 // Can't have negative missed picks
+		}
+		stats.MissedPicksTotal = dbUtil.IntPtr(missedPicksTotal)
+
+		// Calculate perfect weeks - season
+		var perfectWeeksSeason int
+		perfectWeeksQuery := `
+			SELECT COUNT(*) FROM (
+				SELECT gw.weeknumber
+				FROM (SELECT DISTINCT weeknumber FROM public.pickem_api_gameweeks) gw
+				WHERE EXISTS (
+					SELECT 1 FROM pickem_api_gamesandscores gs 
+					WHERE CAST(gs.gameweek AS INTEGER) = gw.weeknumber 
+					AND gs.gameseason = $1 
+					AND gs.gamescored = true
+				)
+				AND (
+					SELECT COUNT(*) FROM pickem_api_gamesandscores gs2 
+					WHERE CAST(gs2.gameweek AS INTEGER) = gw.weeknumber 
+					AND gs2.gameseason = $1 
+					AND gs2.gamescored = true
+				) = (
+					SELECT COUNT(*) FROM pickem_api_gamepicks gp 
+					WHERE CAST(gp.gameweek AS INTEGER) = gw.weeknumber 
+					AND gp.gameseason = $1 
+					AND gp."userID" = $2 
+					AND gp.pick_correct = true
+				)
+				AND (
+					SELECT COUNT(*) FROM pickem_api_gamepicks gp2 
+					WHERE CAST(gp2.gameweek AS INTEGER) = gw.weeknumber 
+					AND gp2.gameseason = $1 
+					AND gp2."userID" = $2
+				) > 0
+			) perfect_weeks`
+
+		err = db.QueryRow(perfectWeeksQuery, currentSeason, uid).Scan(&perfectWeeksSeason)
+		if err != nil {
+			log.Printf("Error getting perfect weeks for season %s, UID %s: %v", currentSeason, uid, err)
+			perfectWeeksSeason = 0
+		}
+		stats.PerfectWeeksSeason = dbUtil.IntPtr(perfectWeeksSeason)
+
+		// Calculate perfect weeks - total (all time)
+		var perfectWeeksTotal int
+		perfectWeeksTotalQuery := `
+			SELECT COUNT(*) FROM (
+				SELECT gw.weeknumber, gs.gameseason
+				FROM (SELECT DISTINCT weeknumber FROM public.pickem_api_gameweeks) gw
+				CROSS JOIN (SELECT DISTINCT gameseason FROM pickem_api_gamesandscores WHERE gamescored = true) gs
+				WHERE EXISTS (
+					SELECT 1 FROM pickem_api_gamesandscores gs2 
+					WHERE CAST(gs2.gameweek AS INTEGER) = gw.weeknumber 
+					AND gs2.gameseason = gs.gameseason 
+					AND gs2.gamescored = true
+				)
+				AND (
+					SELECT COUNT(*) FROM pickem_api_gamesandscores gs3 
+					WHERE CAST(gs3.gameweek AS INTEGER) = gw.weeknumber 
+					AND gs3.gameseason = gs.gameseason 
+					AND gs3.gamescored = true
+				) = (
+					SELECT COUNT(*) FROM pickem_api_gamepicks gp 
+					WHERE CAST(gp.gameweek AS INTEGER) = gw.weeknumber 
+					AND gp.gameseason = gs.gameseason 
+					AND gp."userID" = $1 
+					AND gp.pick_correct = true
+				)
+				AND (
+					SELECT COUNT(*) FROM pickem_api_gamepicks gp2 
+					WHERE CAST(gp2.gameweek AS INTEGER) = gw.weeknumber 
+					AND gp2.gameseason = gs.gameseason 
+					AND gp2."userID" = $1
+				) > 0
+			) perfect_weeks`
+
+		err = db.QueryRow(perfectWeeksTotalQuery, uid).Scan(&perfectWeeksTotal)
+		if err != nil {
+			log.Printf("Error getting total perfect weeks for UID %s: %v", uid, err)
+			perfectWeeksTotal = 0
+		}
+		stats.PerfectWeeksTotal = dbUtil.IntPtr(perfectWeeksTotal)
+
 		// Upsert the user stats
 		if err := dbUtil.UpsertUserStats(db, stats); err != nil {
 			log.Printf("Error upserting user stats for UID %s: %v", uid, err)
 		} else {
-			log.Printf("✓ UID: %s, Weeks Won - Total: %d, Season: %d", uid, weeksWonTotal, weeksWonSeason)
+			log.Printf("✓ UID: %s, Weeks Won - Total: %d, Season: %d, Seasons Won: %d, Missed Picks - Total: %d, Season: %d, Perfect Weeks - Total: %d, Season: %d", uid, weeksWonTotal, weeksWonSeason, seasonsWon, missedPicksTotal, missedPicksSeason, perfectWeeksTotal, perfectWeeksSeason)
 		}
 	}
 }

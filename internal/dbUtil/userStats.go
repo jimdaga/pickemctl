@@ -58,8 +58,9 @@ func InsertUserStats(db *sql.DB, stats *UserStats) error {
 			"pickPercentSeason", "pickPercentTotal", "correctPickTotalSeason",
 			"correctPickTotalTotal", "totalPicksSeason", "totalPicksTotal",
 			"mostPickedSeason", "mostPickedTotal", "leastPickedSeason",
-			"leastPickedTotal", "seasonsWon"
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+			"leastPickedTotal", "seasonsWon", "missedPicksSeason", "missedPicksTotal",
+			"perfectWeeksSeason", "perfectWeeksTotal"
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 	`
 
 	_, err := db.Exec(query,
@@ -67,7 +68,8 @@ func InsertUserStats(db *sql.DB, stats *UserStats) error {
 		stats.PickPercentSeason, stats.PickPercentTotal, stats.CorrectPickTotalSeason,
 		stats.CorrectPickTotalTotal, stats.TotalPicksSeason, stats.TotalPicksTotal,
 		stats.MostPickedSeason, stats.MostPickedTotal, stats.LeastPickedSeason,
-		stats.LeastPickedTotal, stats.SeasonsWon,
+		stats.LeastPickedTotal, stats.SeasonsWon, stats.MissedPicksSeason, stats.MissedPicksTotal,
+		stats.PerfectWeeksSeason, stats.PerfectWeeksTotal,
 	)
 
 	if err != nil {
@@ -153,6 +155,26 @@ func UpdateUserStats(db *sql.DB, stats *UserStats) error {
 	if stats.SeasonsWon != nil {
 		setParts = append(setParts, fmt.Sprintf(`"seasonsWon" = $%d`, argIndex))
 		args = append(args, *stats.SeasonsWon)
+		argIndex++
+	}
+	if stats.MissedPicksSeason != nil {
+		setParts = append(setParts, fmt.Sprintf(`"missedPicksSeason" = $%d`, argIndex))
+		args = append(args, *stats.MissedPicksSeason)
+		argIndex++
+	}
+	if stats.MissedPicksTotal != nil {
+		setParts = append(setParts, fmt.Sprintf(`"missedPicksTotal" = $%d`, argIndex))
+		args = append(args, *stats.MissedPicksTotal)
+		argIndex++
+	}
+	if stats.PerfectWeeksSeason != nil {
+		setParts = append(setParts, fmt.Sprintf(`"perfectWeeksSeason" = $%d`, argIndex))
+		args = append(args, *stats.PerfectWeeksSeason)
+		argIndex++
+	}
+	if stats.PerfectWeeksTotal != nil {
+		setParts = append(setParts, fmt.Sprintf(`"perfectWeeksTotal" = $%d`, argIndex))
+		args = append(args, *stats.PerfectWeeksTotal)
 		argIndex++
 	}
 
