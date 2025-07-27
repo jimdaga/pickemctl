@@ -36,7 +36,7 @@ func RunPickStats(db *sql.DB) {
 func CorrectPicksByUid(db *sql.DB) {
 	currentSeason := viper.GetString("app.season.current")
 
-	uidrows, err := db.Query("SELECT DISTINCT(uid) FROM public.pickem_api_gamepicks")
+	uidrows, err := db.Query("SELECT DISTINCT(uid) FROM public.pickem_api_gamepicks WHERE gameseason IS NOT NULL")
 	if err != nil {
 		log.Printf("Error getting distinct UIDs: %v", err)
 		return
@@ -68,14 +68,14 @@ func CorrectPicksByUid(db *sql.DB) {
 		// Calculate ALL TIME stats
 		var correctPicksTotal, totalPicksTotal int
 		err = db.QueryRow("SELECT count(*) FROM pickem_api_gamepicks "+
-			"WHERE uid = $1 AND pick_correct = true", uid).Scan(&correctPicksTotal)
+			"WHERE uid = $1 AND pick_correct = true AND gameseason IS NOT NULL", uid).Scan(&correctPicksTotal)
 		if err != nil {
 			log.Printf("Error getting total correct picks for UID %s: %v", uid, err)
 			continue
 		}
 
 		err = db.QueryRow("SELECT count(*) FROM pickem_api_gamepicks "+
-			"WHERE uid = $1", uid).Scan(&totalPicksTotal)
+			"WHERE uid = $1 AND gameseason IS NOT NULL", uid).Scan(&totalPicksTotal)
 		if err != nil {
 			log.Printf("Error getting total picks for UID %s: %v", uid, err)
 			continue
@@ -94,13 +94,13 @@ func CorrectPicksByUid(db *sql.DB) {
 		// Calculate CURRENT SEASON stats
 		var correctPicksSeason, totalPicksSeason int
 		err = db.QueryRow("SELECT count(*) FROM pickem_api_gamepicks "+
-			"WHERE uid = $1 AND pick_correct = true AND gameseason = $2", uid, currentSeason).Scan(&correctPicksSeason)
+			"WHERE uid = $1 AND pick_correct = true AND gameseason = $2 AND gameseason IS NOT NULL", uid, currentSeason).Scan(&correctPicksSeason)
 		if err != nil {
 			log.Printf("Error getting season correct picks for UID %s: %v", uid, err)
 			// Continue with just total stats
 		} else {
 			err = db.QueryRow("SELECT count(*) FROM pickem_api_gamepicks "+
-				"WHERE uid = $1 AND gameseason = $2", uid, currentSeason).Scan(&totalPicksSeason)
+				"WHERE uid = $1 AND gameseason = $2 AND gameseason IS NOT NULL", uid, currentSeason).Scan(&totalPicksSeason)
 			if err != nil {
 				log.Printf("Error getting season picks for UID %s: %v", uid, err)
 			} else {
@@ -134,7 +134,7 @@ func CorrectPicksByUid(db *sql.DB) {
 }
 
 func WeeksWonByUid(db *sql.DB) {
-	uidrows, err := db.Query("SELECT DISTINCT(uid) FROM public.pickem_api_gamepicks")
+	uidrows, err := db.Query("SELECT DISTINCT(uid) FROM public.pickem_api_gamepicks WHERE gameseason IS NOT NULL")
 	if err != nil {
 		log.Printf("Error getting distinct UIDs: %v", err)
 		return
@@ -188,7 +188,7 @@ func WeeksWonByUid(db *sql.DB) {
 			"CASE WHEN \"week_18_winner\" THEN 1 ELSE 0 END"+
 			"), 0) AS \"total_wins\""+
 			"FROM \"pickem_api_userseasonpoints\""+
-			"WHERE \"userID\" = $1 "+
+			"WHERE \"userID\" = $1 AND \"gameseason\" IS NOT NULL "+
 			"GROUP BY \"userID\"", uid).Scan(&userID, &weeksWonTotal)
 
 		if err != nil {
@@ -230,7 +230,7 @@ func WeeksWonByUid(db *sql.DB) {
 			"CASE WHEN \"week_18_winner\" THEN 1 ELSE 0 END"+
 			"), 0) AS \"season_wins\""+
 			"FROM \"pickem_api_userseasonpoints\""+
-			"WHERE \"userID\" = $1 AND \"gameseason\" = $2", uid, currentSeason).Scan(&weeksWonSeason)
+			"WHERE \"userID\" = $1 AND \"gameseason\" = $2 AND \"gameseason\" IS NOT NULL", uid, currentSeason).Scan(&weeksWonSeason)
 
 		if err != nil {
 			log.Printf("Error getting season weeks won for UID %s: %v", uid, err)
@@ -242,7 +242,7 @@ func WeeksWonByUid(db *sql.DB) {
 
 		// Calculate seasons won (year_winner = true count)
 		var seasonsWon int
-		err = db.QueryRow("SELECT COUNT(*) FROM \"pickem_api_userseasonpoints\" WHERE \"userID\" = $1 AND \"year_winner\" = true", uid).Scan(&seasonsWon)
+		err = db.QueryRow("SELECT COUNT(*) FROM \"pickem_api_userseasonpoints\" WHERE \"userID\" = $1 AND \"year_winner\" = true AND \"gameseason\" IS NOT NULL", uid).Scan(&seasonsWon)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				seasonsWon = 0
@@ -265,10 +265,12 @@ func WeeksWonByUid(db *sql.DB) {
 			FROM "pickem_api_gamesandscores" gs
 			WHERE gs."gameseason" = $1 
 			AND gs."gameScored" = true
+			AND gs."gameseason" IS NOT NULL
 			AND NOT EXISTS (
 				SELECT 1 FROM "pickem_api_gamepicks" gp 
 				WHERE gp."pick_game_id" = gs."id" 
 				AND gp."userID" = $2
+				AND gp."gameseason" IS NOT NULL
 			)`, currentSeason, uid).Scan(&missedPicksSeason)
 
 		if err != nil {
@@ -285,10 +287,12 @@ func WeeksWonByUid(db *sql.DB) {
 			SELECT COUNT(*) 
 			FROM "pickem_api_gamesandscores" gs
 			WHERE gs."gameScored" = true
+			AND gs."gameseason" IS NOT NULL
 			AND NOT EXISTS (
 				SELECT 1 FROM "pickem_api_gamepicks" gp 
 				WHERE gp."pick_game_id" = gs."id" 
 				AND gp."userID" = $1
+				AND gp."gameseason" IS NOT NULL
 			)`, uid).Scan(&missedPicksTotal)
 
 		if err != nil {
@@ -304,12 +308,14 @@ func WeeksWonByUid(db *sql.DB) {
 			FROM pickem_api_gamesandscores gs
 			WHERE gs.gameseason = $1 
 			AND gs.gamescored = true
+			AND gs.gameseason IS NOT NULL
 			AND (
 				-- Count of scored games in this week
 				SELECT COUNT(*) FROM pickem_api_gamesandscores gs2 
 				WHERE gs2.gameweek = gs.gameweek 
 				AND gs2.gameseason = gs.gameseason 
 				AND gs2.gamescored = true
+				AND gs2.gameseason IS NOT NULL
 			) = (
 				-- Count of correct picks by user in this week
 				SELECT COUNT(*) FROM pickem_api_gamepicks gp 
@@ -317,6 +323,7 @@ func WeeksWonByUid(db *sql.DB) {
 				AND gp.gameseason = gs.gameseason 
 				AND gp."userID" = $2 
 				AND gp.pick_correct = true
+				AND gp.gameseason IS NOT NULL
 			)
 			AND (
 				-- Ensure user made picks for ALL scored games (no missed picks)
@@ -324,12 +331,14 @@ func WeeksWonByUid(db *sql.DB) {
 				WHERE gs3.gameweek = gs.gameweek 
 				AND gs3.gameseason = gs.gameseason 
 				AND gs3.gamescored = true
+				AND gs3.gameseason IS NOT NULL
 			) = (
 				-- Count of total picks by user in this week
 				SELECT COUNT(*) FROM pickem_api_gamepicks gp2 
 				WHERE gp2.gameweek = gs.gameweek 
 				AND gp2.gameseason = gs.gameseason 
 				AND gp2."userID" = $2
+				AND gp2.gameseason IS NOT NULL
 			)`
 
 		err = db.QueryRow(perfectWeeksQuery, currentSeason, uid).Scan(&perfectWeeksSeason)
@@ -345,12 +354,14 @@ func WeeksWonByUid(db *sql.DB) {
 			SELECT COUNT(DISTINCT gs.gameseason || '-' || gs.gameweek) 
 			FROM pickem_api_gamesandscores gs
 			WHERE gs.gamescored = true
+			AND gs.gameseason IS NOT NULL
 			AND (
 				-- Count of scored games in this week/season
 				SELECT COUNT(*) FROM pickem_api_gamesandscores gs2 
 				WHERE gs2.gameweek = gs.gameweek 
 				AND gs2.gameseason = gs.gameseason 
 				AND gs2.gamescored = true
+				AND gs2.gameseason IS NOT NULL
 			) = (
 				-- Count of correct picks by user in this week/season
 				SELECT COUNT(*) FROM pickem_api_gamepicks gp 
@@ -358,6 +369,7 @@ func WeeksWonByUid(db *sql.DB) {
 				AND gp.gameseason = gs.gameseason 
 				AND gp."userID" = $1 
 				AND gp.pick_correct = true
+				AND gp.gameseason IS NOT NULL
 			)
 			AND (
 				-- Ensure user made picks for ALL scored games (no missed picks)
@@ -365,12 +377,14 @@ func WeeksWonByUid(db *sql.DB) {
 				WHERE gs3.gameweek = gs.gameweek 
 				AND gs3.gameseason = gs.gameseason 
 				AND gs3.gamescored = true
+				AND gs3.gameseason IS NOT NULL
 			) = (
 				-- Count of total picks by user in this week/season
 				SELECT COUNT(*) FROM pickem_api_gamepicks gp2 
 				WHERE gp2.gameweek = gs.gameweek 
 				AND gp2.gameseason = gs.gameseason 
 				AND gp2."userID" = $1
+				AND gp2.gameseason IS NOT NULL
 			)`
 
 		err = db.QueryRow(perfectWeeksTotalQuery, uid).Scan(&perfectWeeksTotal)
