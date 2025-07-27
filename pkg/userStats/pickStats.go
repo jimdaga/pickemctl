@@ -304,22 +304,22 @@ func WeeksWonByUid(db *sql.DB) {
 		// Calculate perfect weeks - season
 		var perfectWeeksSeason int
 		perfectWeeksQuery := `
-			SELECT COUNT(DISTINCT gs.gameweek) 
+			SELECT COUNT(DISTINCT gs."gameWeek") 
 			FROM pickem_api_gamesandscores gs
 			WHERE gs.gameseason = $1 
-			AND gs.gamescored = true
+			AND gs."gameScored" = true
 			AND gs.gameseason IS NOT NULL
 			AND (
 				-- Count of scored games in this week
 				SELECT COUNT(*) FROM pickem_api_gamesandscores gs2 
-				WHERE gs2.gameweek = gs.gameweek 
+				WHERE gs2."gameWeek" = gs."gameWeek" 
 				AND gs2.gameseason = gs.gameseason 
-				AND gs2.gamescored = true
+				AND gs2."gameScored" = true
 				AND gs2.gameseason IS NOT NULL
 			) = (
 				-- Count of correct picks by user in this week
 				SELECT COUNT(*) FROM pickem_api_gamepicks gp 
-				WHERE gp.gameweek = gs.gameweek 
+				WHERE gp."gameWeek" = gs."gameWeek" 
 				AND gp.gameseason = gs.gameseason 
 				AND gp."uid" = $2 
 				AND gp.pick_correct = true
@@ -328,14 +328,14 @@ func WeeksWonByUid(db *sql.DB) {
 			AND (
 				-- Ensure user made picks for ALL scored games (no missed picks)
 				SELECT COUNT(*) FROM pickem_api_gamesandscores gs3
-				WHERE gs3.gameweek = gs.gameweek 
+				WHERE gs3."gameWeek" = gs."gameWeek" 
 				AND gs3.gameseason = gs.gameseason 
-				AND gs3.gamescored = true
+				AND gs3."gameScored" = true
 				AND gs3.gameseason IS NOT NULL
 			) = (
 				-- Count of total picks by user in this week
 				SELECT COUNT(*) FROM pickem_api_gamepicks gp2 
-				WHERE gp2.gameweek = gs.gameweek 
+				WHERE gp2."gameWeek" = gs."gameWeek" 
 				AND gp2.gameseason = gs.gameseason 
 				AND gp2."uid" = $2
 				AND gp2.gameseason IS NOT NULL
